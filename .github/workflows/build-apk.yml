@@ -1,0 +1,46 @@
+# Builds the Sky Skirmish debug APK in the cloud (free).
+# How to use:
+#  1. Create a free account at github.com
+#  2. Create a new repository (any name), upload the contents of this
+#     sky-skirmish-apps folder into it (drag & drop on the GitHub website works)
+#  3. Click the "Actions" tab -> the "Build APK" workflow runs automatically
+#  4. When it finishes (green tick), download "app-debug.apk" from the
+#     Artifacts section at the bottom of the run page
+#  5. Send the APK to your phone (Google Drive / WhatsApp to yourself),
+#     tap it, allow "install unknown apps", and play.
+#
+# NOTE: this builds a DEBUG apk for testing. The RELEASE bundle (.aab) for
+# Google Play must be signed with YOUR keystore - build that one in
+# Android Studio (Build -> Generate Signed App Bundle), or ask Muse
+# about the release workflow once you have your keystore file.
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        working-directory: cap/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug.apk
+          path: cap/android/app/build/outputs/apk/debug/app-debug.apk

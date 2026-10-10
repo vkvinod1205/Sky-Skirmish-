@@ -1,0 +1,7 @@
+cap/node_modules/
+android-sdk/
+cap/android/build/
+cap/android/app/build/
+cap/ios/build/
+.DS_Store
+*.log

@@ -1,0 +1,1 @@
+-Dhttp.proxyHost=hatch-egress-proxy -Dhttp.proxyPort=3128 -Dhttp.proxyUser=hatch-runtime -Dhttp.proxyPassword=a4054015c5bb4161b32834f22f69fa57 -Dhttps.proxyHost=hatch-egress-proxy -Dhttps.proxyPort=3128 -Dhttps.proxyUser=hatch-runtime -Dhttps.proxyPassword=a4054015c5bb4161b32834f22f69fa57 '-Dhttp.nonProxyHosts=localhost|127.0.0.1'
