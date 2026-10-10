@@ -727,10 +727,10 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
       case 'patch': g.fillStyle = '#1b1b20'; g.beginPath(); g.ellipse(x - 0.5, y, 3.6, 4.4, 0.3, 0, 6.28); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(x + 0.4, y - 0.4, 0.9, 0, 6.28); g.fill(); break;
       case 'hollow': g.fillStyle = '#0a0a0e'; g.beginPath(); g.ellipse(x, y, 2.8, 3.4, 0, 0, 6.28); g.fill(); break;
       case 'x': g.strokeStyle = '#1a1a1a'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x - 2.4, y - 2.4); g.lineTo(x + 2.4, y + 2.4); g.moveTo(x + 2.4, y - 2.4); g.lineTo(x - 2.4, y + 2.4); g.stroke(); break;
-      case 'red': g.shadowColor = '#ff2a2a'; g.shadowBlur = 5; g.fillStyle = '#ff3a3a'; g.beginPath(); g.ellipse(x, y, 2.2, 2, 0, 0, 6.28); g.fill(); g.shadowBlur = 0; break;
-      case 'glow': g.shadowColor = '#ffd23a'; g.shadowBlur = 6; g.fillStyle = '#ffe66a'; g.beginPath(); g.ellipse(x, y, 2.4, 2.1, 0, 0, 6.28); g.fill(); g.shadowBlur = 0; break;
+      case 'red': shd(g, '#ff2a2a', 5); g.fillStyle = '#ff3a3a'; g.beginPath(); g.ellipse(x, y, 2.2, 2, 0, 0, 6.28); g.fill(); g.shadowBlur = 0; break;
+      case 'glow': shd(g, '#ffd23a', 6); g.fillStyle = '#ffe66a'; g.beginPath(); g.ellipse(x, y, 2.4, 2.1, 0, 0, 6.28); g.fill(); g.shadowBlur = 0; break;
       case 'big': g.fillStyle = '#0a0f0a'; g.beginPath(); g.ellipse(x, y, 4, 5.4, 0.35, 0, 6.28); g.fill(); g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.arc(x + 1, y - 1.6, 1, 0, 6.28); g.fill(); break;
-      case 'visor': g.shadowColor = '#46e0ff'; g.shadowBlur = 5; g.fillStyle = '#6ae6ff'; g.fillRect(x - 5, y - 2, 11, 3.6); g.shadowBlur = 0; break;
+      case 'visor': shd(g, '#46e0ff', 5); g.fillStyle = '#6ae6ff'; g.fillRect(x - 5, y - 2, 11, 3.6); g.shadowBlur = 0; break;
       default: g.fillStyle = '#fff'; g.beginPath(); g.ellipse(x, y, 2.4, 2.6, 0, 0, 6.28); g.fill(); g.fillStyle = '#16120e'; g.beginPath(); g.arc(x + 0.9, y + 0.2, 1.3, 0, 6.28); g.fill(); g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 0.7; g.beginPath(); g.ellipse(x, y, 2.4, 2.6, 0, 0, 6.28); g.stroke();
     }
   }
@@ -741,7 +741,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     if (h.mane) { circ(g, -1, 1, 15.5, h.mane); g.strokeStyle = shade(h.mane, -0.5); g.lineWidth = 1; for (var q = 0; q < 9; q++) { var an = q * 0.7; g.beginPath(); g.moveTo(Math.cos(an) * 8, Math.sin(an) * 8); g.lineTo(Math.cos(an) * 14.5, Math.sin(an) * 14.5); g.stroke(); } }
     if (h.ears === 'long') { ell(g, -4, -17, 3, 9, f, -0.1); ell(g, -4, -17, 1.4, 6.4, '#f6c4cf'); ell(g, 2, -16.5, 3, 8.6, f, 0.15); }
     if (hd === 'hood' || (hd === 'ninja')) circ(g, -1, 0, 12.6, d);
-    if (k === 'ghost') { g.shadowColor = '#bfe0ff'; g.shadowBlur = 9; }
+    if (k === 'ghost') shd(g, '#bfe0ff', 9);
     // head shape
     if (k === 'alien') ell(g, 0, -0.5, 8.6, 11.6, f);
     else if (k === 'robot') { box(g, -9.5, -9, 19, 18, f, 3.4); g.fillStyle = shade(f, -0.3); g.fillRect(-9.5, 2, 19, 1.2); }
@@ -839,7 +839,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     var air = o.og === false, sw = mv && !air ? Math.sin(t * 15) * 5.2 : 0, bob = mv && !air ? Math.abs(Math.sin(t * 15)) * 1.3 : 0;
     var gun = o.wid >= 0 ? WEAP[o.wid] : null, a = o.aim || 0, rot = f > 0 ? a : Math.PI - a;
     g.save(); g.scale(f, 1);
-    if (pal.glow) { g.shadowColor = pal.a; g.shadowBlur = 9; }
+    if (pal.glow) shd(g, pal.a, 9);
     g.lineJoin = 'round';
     // jetpack (behind everything)
     box(g, -17, 21 - bob, 9, 17, '#6a7384', 3); box(g, -17, 25 - bob, 9, 2.6, '#d24a34', 0.6); box(g, -15.6, 36 - bob, 6, 3.6, DK, 1);
@@ -1707,6 +1707,15 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     sfx.pin(); vibrate(15);
   }
   var cvs = $('c'), ctx = cvs.getContext('2d'), stage = $('game'), dpr = 1;
+  // Adaptive quality: a frame-rate watchdog steps down RENDERING cost on weak
+  // GPUs (fewer pixels, no shadow-blur glows, fewer particles). The simulation,
+  // gameplay, layout and controls are never touched; fast devices keep full quality.
+  var Q = { level: 0, t: 0, n: 0, bad: 0, pxCap: 2300000 };
+  function shd(g, col, amt) { if (Q.level < 1) { g.shadowColor = col; g.shadowBlur = amt; } }
+  function applyQuality() {
+    Q.pxCap = [2300000, 1500000, 950000][Q.level] || 950000;
+    try { layout(); } catch (e) {}
+  }
   function layout() {
     var vw = window.innerWidth || 800, vh = window.innerHeight || 450, want = mode === 'game' && vh > vw * 1.02;
     rot = want;
@@ -1717,7 +1726,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     // DPR-2 backing store is 4M+ px per frame and tanks the frame rate; this
     // keeps phones pixel-perfect while tablets render slightly softer but smooth.
     var rawDpr = window.devicePixelRatio || 1;
-    dpr = Math.max(1, Math.min(rawDpr, 2, Math.sqrt(2300000 / Math.max(1, cw * ch))));
+    dpr = Math.max(1, Math.min(rawDpr, 2, Math.sqrt(Q.pxCap / Math.max(1, cw * ch))));
     dpr = Math.round(dpr * 100) / 100;
     cvs.width = Math.max(1, Math.round(cw * dpr)); cvs.height = Math.max(1, Math.round(ch * dpr));
     view.cw = cw; view.ch = ch;
@@ -1848,6 +1857,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
       if (p.cs) { p.rt += p.vr * dt; if (p.vy > 0 && ptRect(p.x, p.y + 2)) { p.y -= p.vy * dt; p.vy *= -0.35; p.vx *= 0.6; p.vr *= 0.5; if (Math.abs(p.vy) < 40) { p.vy = 0; p.vx *= 0.5; p.vr = 0; } } }
     }
     if (fx.length > 400) fx.splice(0, fx.length - 400);
+    if (Q.level >= 2 && fx.length > 150) fx.splice(0, fx.length - 150);
     for (i = G.floats.length - 1; i >= 0; i--) { var f = G.floats[i]; f.l -= dt; f.y -= 40 * dt; if (f.l <= 0) G.floats.splice(i, 1); }
     shake = Math.max(0, shake - dt * 30);
     for (i = corpses.length - 1; i >= 0; i--) {
@@ -3019,6 +3029,15 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
       while (acc >= 1 / 60 && n < 6) { acc -= 1 / 60; n++; tick(1 / 60); }
       if (n === 6) acc = 0;
       render(dt);
+      // Adaptive quality watchdog: if the device can't hold ~42fps, step down
+      // rendering cost (never the simulation). Needs 2 consecutive slow windows
+      // to avoid reacting to one-off hitches; never steps back up (no oscillation).
+      Q.t += dt; Q.n++;
+      if (Q.t >= 4) {
+        var qfps = Q.n / Math.max(0.001, Q.t); Q.t = 0; Q.n = 0;
+        if (qfps < 42) { if (++Q.bad >= 2 && Q.level < 2) { Q.level++; Q.bad = 0; applyQuality(); } }
+        else Q.bad = 0;
+      }
       hudT += dt;
       if (hudT > 0.12) {
         hudT = 0; renderOverlay();
