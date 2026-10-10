@@ -2452,6 +2452,16 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mx, my, 9, 0, 6.283); ctx.moveTo(mx - 14, my); ctx.lineTo(mx - 5, my); ctx.moveTo(mx + 5, my); ctx.lineTo(mx + 14, my); ctx.moveTo(mx, my - 14); ctx.lineTo(mx, my - 5); ctx.moveTo(mx, my + 5); ctx.lineTo(mx, my + 14); ctx.stroke();
     }
     drawHud();
+    // TEMPORARY diagnostic overlay (fps + quality level + build tag) so we can
+    // verify the adaptive quality on real hardware. Will be removed after tuning.
+    try {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.save(); ctx.globalAlpha = 0.6; ctx.fillStyle = '#fff';
+      ctx.font = '10px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      var qf = Q.t > 0.2 ? Math.round(Q.n / Q.t) : 0;
+      ctx.fillText(qf + 'fps q' + Q.level + ' b3', view.cw - 6, 4);
+      ctx.restore();
+    } catch (e) {}
   }
 
   /* ====================== menu: scaling, home screen, shops ====================== */
