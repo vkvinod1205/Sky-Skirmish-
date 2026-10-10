@@ -1713,7 +1713,12 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     if (want) { stage.className = 'rot'; stage.style.width = vh + 'px'; stage.style.height = vw + 'px'; stage.style.left = vw + 'px'; }
     else { stage.className = ''; stage.style.width = ''; stage.style.height = ''; stage.style.left = ''; }
     var cw = want ? vh : (stage.clientWidth || vw), ch = want ? vw : (stage.clientHeight || vh);
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Perf: cap the canvas backing store (~2.3M px max). On big tablets a full
+    // DPR-2 backing store is 4M+ px per frame and tanks the frame rate; this
+    // keeps phones pixel-perfect while tablets render slightly softer but smooth.
+    var rawDpr = window.devicePixelRatio || 1;
+    dpr = Math.max(1, Math.min(rawDpr, 2, Math.sqrt(2300000 / Math.max(1, cw * ch))));
+    dpr = Math.round(dpr * 100) / 100;
     cvs.width = Math.max(1, Math.round(cw * dpr)); cvs.height = Math.max(1, Math.round(ch * dpr));
     view.cw = cw; view.ch = ch;
     view.base = Math.max(0.3, Math.min(cw / 800, ch / 440));
