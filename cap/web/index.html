@@ -1728,12 +1728,15 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
   var TOUCH = false;
   try { TOUCH = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || ('ontouchstart' in window); } catch (e) {}
   var Q = { level: 0, t: 0, n: 0, bad: 0, pxCap: 1800000 };
-  try { var sq = parseInt(localStorage.getItem('sk_q'), 10); if (sq >= 0 && sq <= 3) Q.level = sq; } catch (e) {}
+  var sqSaved = false;
+  try { var sq = parseInt(localStorage.getItem('sk_q'), 10); if (sq >= 0 && sq <= 3) { Q.level = sq; sqSaved = true; } } catch (e) {}
+  // Weak tablets/phones (low RAM) start at a reduced level instead of lagging first and adapting later
+  try { if (!sqSaved && TOUCH && (navigator.deviceMemory || 4) <= 3) Q.level = 2; } catch (e) {}
   // shadowBlur is extremely slow on mobile GPUs, so it is only used on non-touch devices at top quality
   function shd(g, col, amt) { if (Q.level < 1 && !TOUCH) { g.shadowColor = col; g.shadowBlur = amt; } }
   function applyQuality() {
     Q.pxCap = [1800000, 1300000, 900000, 650000][Q.level] || 650000;
-    try { localStorage.setItem('sk_q', String(Math.min(Q.level, 2))); } catch (e) {}
+    try { localStorage.setItem('sk_q', String(Math.min(Q.level, 3))); } catch (e) {}
     try { layout(); } catch (e) {}
   }
   function layout() {
@@ -3100,7 +3103,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
       if (n === 6) acc = 0;
       // On 120Hz+ screens drawing every vsync doubles GPU work for no visible gain: draw every other frame.
       rfd += (dt - rfd) * 0.05; rdt += dt; rfc++;
-      var rdraw = !(rfd > 0 && rfd < 0.0095 && (rfc & 1));
+      var rskip = (rfd > 0 && rfd < 0.0095 ? 2 : 1) * (Q.level >= 3 ? 2 : 1), rdraw = (rfc % rskip) === 0;
       if (rdraw) {
         try { render(rdt); } catch (err) {
           var eb = document.getElementById('skerr');
