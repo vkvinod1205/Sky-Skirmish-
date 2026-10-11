@@ -1209,13 +1209,28 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     for (var i = 0; i < L.zones.length; i++) { var z = L.zones[i]; if (x > z.x && x < z.x + z.w && cy > z.y && cy < z.y + z.h) return true; }
     return false;
   }
+  // Spatial grid over the (static) level rects so point tests don't scan every rect.
+  var GC = 160, GR = null, GG = null, GCols = 0, GRows = 0, GEmpty = [];
+  function buildGrid() {
+    GR = RECTS; GCols = Math.ceil((WW + 400) / GC) + 1; GRows = Math.ceil((WH + 900) / GC) + 1; GG = new Array(GCols * GRows);
+    for (var i = 0; i < RECTS.length; i++) {
+      var q = RECTS[i], x0 = Math.max(0, Math.floor((q.x + 200) / GC)), x1 = Math.min(GCols - 1, Math.floor((q.x + q.w + 200) / GC));
+      var y0 = Math.max(0, Math.floor((q.y + 200) / GC)), y1 = Math.min(GRows - 1, Math.floor((q.y + q.h + 200) / GC));
+      for (var cy = y0; cy <= y1; cy++) for (var cx = x0; cx <= x1; cx++) { var k = cy * GCols + cx; (GG[k] || (GG[k] = [])).push(q); }
+    }
+  }
   function groundBelow(x, y) {
     var best = 1e9;
     for (var i = 0; i < RECTS.length; i++) { var q = RECTS[i]; if (x > q.x && x < q.x + q.w && q.y >= y - 3 && q.y < best) best = q.y; }
     return best;
   }
   function ptRect(x, y) {
-    for (var i = 0; i < RECTS.length; i++) { var q = RECTS[i]; if (x > q.x && x < q.x + q.w && y > q.y && y < q.y + q.h) return true; }
+    if (GR !== RECTS) buildGrid();
+    var cx = Math.floor((x + 200) / GC), cy = Math.floor((y + 200) / GC);
+    if (cx < 0 || cy < 0 || cx >= GCols || cy >= GRows) return false;
+    var a = GG[cy * GCols + cx];
+    if (!a) return false;
+    for (var i = 0; i < a.length; i++) { var q = a[i]; if (x > q.x && x < q.x + q.w && y > q.y && y < q.y + q.h) return true; }
     return false;
   }
   function clearLine(ax, ay, bx, by) {
@@ -1706,14 +1721,19 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     bombsL.push({ o: 'p', x: ox, y: oy, vx: vx, vy: vy, t: 2.2 });
     sfx.pin(); vibrate(15);
   }
-  var cvs = $('c'), ctx = cvs.getContext('2d'), stage = $('game'), dpr = 1;
+  var cvs = $('c'), ctx = cvs.getContext('2d', { alpha: false, desynchronized: true }) || cvs.getContext('2d'), stage = $('game'), dpr = 1;
   // Adaptive quality: a frame-rate watchdog steps down RENDERING cost on weak
   // GPUs (fewer pixels, no shadow-blur glows, fewer particles). The simulation,
   // gameplay, layout and controls are never touched; fast devices keep full quality.
-  var Q = { level: 0, t: 0, n: 0, bad: 0, pxCap: 2300000 };
-  function shd(g, col, amt) { if (Q.level < 1) { g.shadowColor = col; g.shadowBlur = amt; } }
+  var TOUCH = false;
+  try { TOUCH = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || ('ontouchstart' in window); } catch (e) {}
+  var Q = { level: 0, t: 0, n: 0, bad: 0, pxCap: 1800000 };
+  try { var sq = parseInt(localStorage.getItem('sk_q'), 10); if (sq >= 0 && sq <= 3) Q.level = sq; } catch (e) {}
+  // shadowBlur is extremely slow on mobile GPUs, so it is only used on non-touch devices at top quality
+  function shd(g, col, amt) { if (Q.level < 1 && !TOUCH) { g.shadowColor = col; g.shadowBlur = amt; } }
   function applyQuality() {
-    Q.pxCap = [2300000, 1500000, 950000][Q.level] || 950000;
+    Q.pxCap = [1800000, 1300000, 900000, 650000][Q.level] || 650000;
+    try { localStorage.setItem('sk_q', String(Math.min(Q.level, 2))); } catch (e) {}
     try { layout(); } catch (e) {}
   }
   function layout() {
@@ -1726,7 +1746,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     // DPR-2 backing store is 4M+ px per frame and tanks the frame rate; this
     // keeps phones pixel-perfect while tablets render slightly softer but smooth.
     var rawDpr = window.devicePixelRatio || 1;
-    dpr = Math.max(1, Math.min(rawDpr, 2, Math.sqrt(Q.pxCap / Math.max(1, cw * ch))));
+    dpr = Math.max(0.75, Math.min(rawDpr, 2, Math.sqrt(Q.pxCap / Math.max(1, cw * ch))));
     dpr = Math.round(dpr * 100) / 100;
     cvs.width = Math.max(1, Math.round(cw * dpr)); cvs.height = Math.max(1, Math.round(ch * dpr));
     view.cw = cw; view.ch = ch;
@@ -1734,6 +1754,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     view.sc = view.base * view.z; view.w = cw / view.sc; view.h = ch / view.sc;
     layoutUI();
   }
+  Q.pxCap = [1800000, 1300000, 900000, 650000][Q.level] || 650000;
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', function () { setTimeout(layout, 120); });
   function canvasPt(e) {
@@ -1856,8 +1877,8 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
       p.vy += (p.gv != null ? p.gv : 900) * dt; p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.cs) { p.rt += p.vr * dt; if (p.vy > 0 && ptRect(p.x, p.y + 2)) { p.y -= p.vy * dt; p.vy *= -0.35; p.vx *= 0.6; p.vr *= 0.5; if (Math.abs(p.vy) < 40) { p.vy = 0; p.vx *= 0.5; p.vr = 0; } } }
     }
-    if (fx.length > 400) fx.splice(0, fx.length - 400);
-    if (Q.level >= 2 && fx.length > 150) fx.splice(0, fx.length - 150);
+    var fxCap = Q.level >= 2 ? 120 : Q.level >= 1 ? 200 : 300;
+    if (fx.length > fxCap) fx.splice(0, fx.length - fxCap);
     for (i = G.floats.length - 1; i >= 0; i--) { var f = G.floats[i]; f.l -= dt; f.y -= 40 * dt; if (f.l <= 0) G.floats.splice(i, 1); }
     shake = Math.max(0, shake - dt * 30);
     for (i = corpses.length - 1; i >= 0; i--) {
@@ -1994,6 +2015,48 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
         if (q.k !== 'g') { var sg = ctx.createLinearGradient(0, q.y + q.h, 0, q.y + q.h + 26); sg.addColorStop(0, 'rgba(0,0,0,0.28)'); sg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = sg; ctx.fillRect(q.x, q.y + q.h, q.w, 26); }
       }
     });
+  }
+  // The terrain, trees and foliage never change within a level, so they are painted once into
+  // small cached tiles and blitted each frame instead of re-running hundreds of gradient/path draws.
+  var TILE = 512, TC = { L: null, cs: 0, tw: 0, back: {}, front: {}, nb: 0, nf: 0, frame: 0 };
+  function tileReset(cs) { TC.L = L; TC.cs = cs; TC.tw = TILE / cs; TC.back = {}; TC.front = {}; TC.nb = 0; TC.nf = 0; }
+  function buildTile(layer, i, j) {
+    var c = mkCanvas(TILE, TILE), g = c.getContext('2d'), cs = TC.cs, tw = TC.tw, wx = i * tw, wy = j * tw;
+    var sCtx = ctx, sx = cam.x, sy = cam.y, sw = view.w, sh = view.h;
+    ctx = g; cam.x = wx; cam.y = wy; view.w = tw; view.h = tw;
+    try {
+      g.setTransform(cs, 0, 0, cs, -wx * cs, -wy * cs);
+      if (layer === 'back') {
+        drawRects();
+        L.decor.forEach(function (d) { if (d.k === 'tree' && vis(d.x - 90, d.y - 240, 180, 250)) treeBack(d); });
+      } else {
+        L.decor.forEach(function (d) { if (vis(d.x - 100, d.y - 250, 200, 260)) { g.globalAlpha = d.k === 'bush' ? 0.95 : 0.94; foliage(d); g.globalAlpha = 1; } });
+      }
+    } finally { ctx = sCtx; cam.x = sx; cam.y = sy; view.w = sw; view.h = sh; }
+    return c;
+  }
+  function drawLayerTiles(layer) {
+    var cs = Math.min(dpr * view.base, 2);
+    if (TC.L !== L || Math.abs(TC.cs - cs) > 0.02) tileReset(cs);
+    var store = layer === 'back' ? TC.back : TC.front, tw = TC.tw, pad = 1 / (dpr * view.sc);
+    var i0 = Math.max(0, Math.floor(cam.x / tw)), i1 = Math.floor((cam.x + view.w) / tw);
+    var j0 = Math.max(0, Math.floor((cam.y - 60) / tw)), j1 = Math.floor((cam.y + view.h + 60) / tw);
+    TC.frame++;
+    for (var j = j0; j <= j1; j++) for (var i = i0; i <= i1; i++) {
+      var k = i + ',' + j, t = store[k];
+      if (!t) { t = store[k] = { c: buildTile(layer, i, j), u: 0 }; if (layer === 'back') TC.nb++; else TC.nf++; }
+      t.u = TC.frame;
+      ctx.drawImage(t.c, i * tw, j * tw, tw + pad, tw + pad);
+    }
+    var n = layer === 'back' ? TC.nb : TC.nf;
+    if (n > 48) {
+      var keys2 = Object.keys(store).sort(function (a, b) { return store[a].u - store[b].u; });
+      for (var m = 0; m < keys2.length && n > 36; m++) { if (store[keys2[m]].u === TC.frame) break; delete store[keys2[m]]; n--; }
+      if (layer === 'back') TC.nb = n; else TC.nf = n;
+    }
+    // restore the context state the old immediate-mode path left behind
+    ctx.lineJoin = 'round';
+    if (layer === 'back') { ctx.lineWidth = 4; ctx.strokeStyle = OUT; } else { ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(20,30,15,0.55)'; }
   }
   function treeBack(d) {
     var cfg = L.th, s = d.s, g = ctx.createLinearGradient(d.x - 9 * s, 0, d.x + 9 * s, 0);
@@ -2388,8 +2451,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawSky(t);
     ctx.setTransform(dpr * view.sc, 0, 0, dpr * view.sc, (-cam.x * view.sc + shx) * dpr, (-cam.y * view.sc + shy) * dpr);
-    drawRects();
-    L.decor.forEach(function (d) { if (d.k === 'tree' && vis(d.x - 90, d.y - 240, 180, 250)) treeBack(d); });
+    drawLayerTiles('back');
     if (L.type !== 'train') drawExit(t);
     G.gens.forEach(function (g, k) { drawGen(g, t, k); });
     G.hos.forEach(function (h, k) { drawHostage(h, t, k); });
@@ -2408,7 +2470,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
       var hid = hiddenAt(me.x, me.y);
       drawEntity({ x: me.x, y: me.y, face: me.face, aim: me.aim, sk: me.sk, wid: wid(me), jet: me.jet, mv: me.og && Math.abs(me.vx) > 30, og: me.og }, t, hid && me.rvT <= 0 ? 0.6 : 1, 1);
     }
-    L.decor.forEach(function (d) { if (vis(d.x - 100, d.y - 250, 200, 260)) { ctx.globalAlpha = d.k === 'bush' ? 0.95 : 0.94; foliage(d); ctx.globalAlpha = 1; } });
+    drawLayerTiles('front');
     drawAimTrace(t);
     for (i = 0; i < bullets.length; i++) {
       var bl = bullets[i], ang = Math.atan2(bl.vy, bl.vx);
@@ -2452,16 +2514,6 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mx, my, 9, 0, 6.283); ctx.moveTo(mx - 14, my); ctx.lineTo(mx - 5, my); ctx.moveTo(mx + 5, my); ctx.lineTo(mx + 14, my); ctx.moveTo(mx, my - 14); ctx.lineTo(mx, my - 5); ctx.moveTo(mx, my + 5); ctx.lineTo(mx, my + 14); ctx.stroke();
     }
     drawHud();
-    // TEMPORARY diagnostic overlay (fps + quality level + build tag) so we can
-    // verify the adaptive quality on real hardware. Will be removed after tuning.
-    try {
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.save(); ctx.globalAlpha = 0.6; ctx.fillStyle = '#fff';
-      ctx.font = '10px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
-      var qf = Q.t > 0.2 ? Math.round(Q.n / Q.t) : 0;
-      ctx.fillText(qf + 'fps q' + Q.level + ' b3', view.cw - 6, 4);
-      ctx.restore();
-    } catch (e) {}
   }
 
   /* ====================== menu: scaling, home screen, shops ====================== */
@@ -3016,7 +3068,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
   $('battle').addEventListener('click', function () { unlock(); openModal('play'); });
 
   /* ====================== main loop ====================== */
-  var last = 0, acc = 0, hudT = 0, homeT = 0;
+  var last = 0, acc = 0, hudT = 0, homeT = 0, rfd = 1 / 60, rdt = 0, rfc = 0;
   function tick(dt) {
     if (G.ph === 'play') {
       G.t += dt; G.introT = Math.max(0, G.introT - dt);
@@ -3038,14 +3090,18 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
       var n = 0;
       while (acc >= 1 / 60 && n < 6) { acc -= 1 / 60; n++; tick(1 / 60); }
       if (n === 6) acc = 0;
-      render(dt);
+      // On 120Hz+ screens drawing every vsync doubles GPU work for no visible gain: draw every other frame.
+      rfd += (dt - rfd) * 0.05; rdt += dt; rfc++;
+      var rdraw = !(rfd > 0 && rfd < 0.0095 && (rfc & 1));
+      if (rdraw) { render(rdt); dt = rdt; rdt = 0; } else dt = 0;
       // Adaptive quality watchdog: if the device can't hold ~42fps, step down
       // rendering cost (never the simulation). Needs 2 consecutive slow windows
       // to avoid reacting to one-off hitches; never steps back up (no oscillation).
-      Q.t += dt; Q.n++;
-      if (Q.t >= 4) {
+      if (rdraw) Q.n++;
+      Q.t += dt;
+      if (Q.t >= 2.5) {
         var qfps = Q.n / Math.max(0.001, Q.t); Q.t = 0; Q.n = 0;
-        if (qfps < 42) { if (++Q.bad >= 2 && Q.level < 2) { Q.level++; Q.bad = 0; applyQuality(); } }
+        if (G.ph === 'play' && qfps < 50) { if (++Q.bad >= 2 && Q.level < 3) { Q.level++; Q.bad = 0; applyQuality(); } }
         else Q.bad = 0;
       }
       hudT += dt;
