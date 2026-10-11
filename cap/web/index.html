@@ -267,14 +267,6 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
 <script>
 (function () {
   'use strict';
-  // TEMPORARY diagnostic: surface any runtime error on screen (removed after the fix).
-  window.addEventListener('error', function (e) {
-    try {
-      var d = document.getElementById('skerr');
-      if (!d) { d = document.createElement('div'); d.id = 'skerr'; d.style.cssText = 'position:fixed;left:6px;top:6px;z-index:99999;background:rgba(180,0,0,0.92);color:#fff;font:11px/1.4 monospace;padding:6px 8px;max-width:92vw;white-space:pre-wrap;pointer-events:none;'; document.body.appendChild(d); }
-      d.textContent = 'ERR: ' + (e.message || e.error) + ' @' + (e.lineno || '?');
-    } catch (x) {}
-  });
   var WW = 4000, WH = 1800, GRAV = 1500, PW = 26, PH = 52, PIV = 22, RUN = 240;
   var BOT_HP = 100, TOTAL = 5, KILLS = 15, MATCH_T = 240, RESP = 3, OVER_T = 8;
   var BOMB_R = 115, BOMB_D = 110;
@@ -1729,7 +1721,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     bombsL.push({ o: 'p', x: ox, y: oy, vx: vx, vy: vy, t: 2.2 });
     sfx.pin(); vibrate(15);
   }
-  var cvs = $('c'), ctx = cvs.getContext('2d', { alpha: false, desynchronized: true }) || cvs.getContext('2d'), stage = $('game'), dpr = 1;
+  var cvs = $('c'), ctx = cvs.getContext('2d'), stage = $('game'), dpr = 1;
   // Adaptive quality: a frame-rate watchdog steps down RENDERING cost on weak
   // GPUs (fewer pixels, no shadow-blur glows, fewer particles). The simulation,
   // gameplay, layout and controls are never touched; fast devices keep full quality.
@@ -2043,7 +2035,15 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     } finally { ctx = sCtx; cam.x = sx; cam.y = sy; view.w = sw; view.h = sh; }
     return c;
   }
+  function drawLive(layer) {
+    if (layer === 'back') { drawRects(); L.decor.forEach(function (d) { if (d.k === 'tree' && vis(d.x - 90, d.y - 240, 180, 250)) treeBack(d); }); }
+    else L.decor.forEach(function (d) { if (vis(d.x - 100, d.y - 250, 200, 260)) { ctx.globalAlpha = d.k === 'bush' ? 0.95 : 0.94; foliage(d); ctx.globalAlpha = 1; } });
+  }
   function drawLayerTiles(layer) {
+    if (TC.off) { drawLive(layer); return; }
+    try { drawLayerTiles2(layer); } catch (e) { TC.off = true; TC.back = {}; TC.front = {}; ctx.globalAlpha = 1; drawLive(layer); }
+  }
+  function drawLayerTiles2(layer) {
     var cs = Math.min(dpr * view.base, 2);
     if (TC.L !== L || Math.abs(TC.cs - cs) > 0.02) tileReset(cs);
     var store = layer === 'back' ? TC.back : TC.front, tw = TC.tw, pad = 1 / (dpr * view.sc);
@@ -2065,22 +2065,6 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     // restore the context state the old immediate-mode path left behind
     ctx.lineJoin = 'round';
     if (layer === 'back') { ctx.lineWidth = 4; ctx.strokeStyle = OUT; } else { ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(20,30,15,0.55)'; }
-  }
-  // TEMPORARY: if tile rendering throws on a device, fall back to the original
-  // immediate-mode drawing so the game still renders, and report the error.
-  function drawLayerTilesSafe(layer) {
-    try { drawLayerTiles(layer); return; } catch (e) {
-      try {
-        var eb = document.getElementById('skerr');
-        if (eb) eb.textContent = 'TILE ERR: ' + ((e && e.message) || e);
-      } catch (x) {}
-    }
-    if (layer === 'back') {
-      drawRects();
-      L.decor.forEach(function (d) { if (d.k === 'tree' && vis(d.x - 90, d.y - 240, 180, 250)) treeBack(d); });
-    } else {
-      L.decor.forEach(function (d) { if (vis(d.x - 100, d.y - 250, 200, 260)) { ctx.globalAlpha = d.k === 'bush' ? 0.95 : 0.94; foliage(d); ctx.globalAlpha = 1; } });
-    }
   }
   function treeBack(d) {
     var cfg = L.th, s = d.s, g = ctx.createLinearGradient(d.x - 9 * s, 0, d.x + 9 * s, 0);
@@ -2475,7 +2459,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawSky(t);
     ctx.setTransform(dpr * view.sc, 0, 0, dpr * view.sc, (-cam.x * view.sc + shx) * dpr, (-cam.y * view.sc + shy) * dpr);
-    drawLayerTilesSafe('back');
+    drawLayerTiles('back');
     if (L.type !== 'train') drawExit(t);
     G.gens.forEach(function (g, k) { drawGen(g, t, k); });
     G.hos.forEach(function (h, k) { drawHostage(h, t, k); });
@@ -2494,7 +2478,7 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
       var hid = hiddenAt(me.x, me.y);
       drawEntity({ x: me.x, y: me.y, face: me.face, aim: me.aim, sk: me.sk, wid: wid(me), jet: me.jet, mv: me.og && Math.abs(me.vx) > 30, og: me.og }, t, hid && me.rvT <= 0 ? 0.6 : 1, 1);
     }
-    drawLayerTilesSafe('front');
+    drawLayerTiles('front');
     drawAimTrace(t);
     for (i = 0; i < bullets.length; i++) {
       var bl = bullets[i], ang = Math.atan2(bl.vy, bl.vx);
@@ -3117,7 +3101,14 @@ canvas { display: block; touch-action: none; user-select: none; -webkit-user-sel
       // On 120Hz+ screens drawing every vsync doubles GPU work for no visible gain: draw every other frame.
       rfd += (dt - rfd) * 0.05; rdt += dt; rfc++;
       var rdraw = !(rfd > 0 && rfd < 0.0095 && (rfc & 1));
-      if (rdraw) { render(rdt); dt = rdt; rdt = 0; } else dt = 0;
+      if (rdraw) {
+        try { render(rdt); } catch (err) {
+          var eb = document.getElementById('skerr');
+          if (!eb) { eb = document.createElement('div'); eb.id = 'skerr'; eb.style.cssText = 'position:fixed;left:8px;top:8px;right:8px;z-index:99999;background:rgba(0,0,0,.8);color:#fff;font:12px monospace;padding:6px;pointer-events:none'; document.body.appendChild(eb); }
+          eb.textContent = 'Render error: ' + (err && err.message) + ' | ' + String(err && err.stack).split('\n').slice(0, 3).join(' | ');
+        }
+        dt = rdt; rdt = 0;
+      } else dt = 0;
       // Adaptive quality watchdog: if the device can't hold ~42fps, step down
       // rendering cost (never the simulation). Needs 2 consecutive slow windows
       // to avoid reacting to one-off hitches; never steps back up (no oscillation).
